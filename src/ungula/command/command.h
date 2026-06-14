@@ -10,5 +10,6 @@
 
 #include "ungula/command/command_types.h"
 #include "ungula/command/command_envelope.h"
+#include "ungula/command/command_ingress.h"
 #include "ungula/command/command_queue.h"
 #include "ungula/command/command_tracker.h"
