@@ -109,11 +109,6 @@ public:
                 return true;
         }
 
-        bool noticePending() const
-        {
-                return noticePending_;
-        }
-
 private:
         uint32_t counter_ = 0; // monotonic correlation-id source
         char notice_[NoticeCapacity] = {};

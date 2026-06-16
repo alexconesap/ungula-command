@@ -49,14 +49,6 @@ enum class CommandPayloadKind : uint8_t {
         ExternalBinary = 3, // reserved — deferred
 };
 
-/// Transport-level outcome of pushing a command toward its target. DISTINCT from
-/// the command-level result (the target's accept/reject verdict).
-enum class SendResult : uint8_t {
-        Queued = 0, // accepted into the outbound queue
-        Sent = 1, // handed to the transport
-        FailedTransport = 2, // transport refused / link down
-};
-
 /// Command-level outcome — the target's verdict on the requested operation.
 /// Arrives via the ACK path: immediately for synchronous transports, later for
 /// asynchronous ones. Both invoke the same onCommandAck() handling.
@@ -99,20 +91,6 @@ inline const char *toString(CommandResult r)
                 return "REJECTED_UNSUPPORTED";
         case CommandResult::Timeout:
                 return "TIMEOUT";
-        default:
-                return "UNKNOWN";
-        }
-}
-
-inline const char *toString(SendResult r)
-{
-        switch (r) {
-        case SendResult::Queued:
-                return "QUEUED";
-        case SendResult::Sent:
-                return "SENT";
-        case SendResult::FailedTransport:
-                return "FAILED_TRANSPORT";
         default:
                 return "UNKNOWN";
         }

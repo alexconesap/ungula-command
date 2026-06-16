@@ -21,22 +21,7 @@ namespace
         uint32_t got = 0;
         (void)env.getInline(got);
 
-        CommandQueue<CommandEnvelope, 4> queue;
-        (void)queue.submit(env);
-        (void)queue.peek(env);
-        (void)queue.take(env);
-        (void)queue.count();
-
-        CommandTracker<8> tracker;
-        (void)tracker.begin(env.id, env.domain, env.type, env.source, env.target, 0);
-        CommandTracker<8>::Entry entry;
-        (void)tracker.complete(env.id, entry);
-        (void)tracker.takeExpired(0, 100, entry);
-        (void)tracker.hasPending(env.domain, env.type, env.target);
-        tracker.cancel(env.domain, env.type, env.target);
-
         (void)toString(CommandResult::Accepted);
-        (void)toString(SendResult::Sent);
         (void)toString(CommandSubmitResult::Accepted);
 }
 

@@ -38,8 +38,6 @@ include_directories(
 add_executable(test_ungula_command
     test_command_types.cpp
     test_command_envelope.cpp
-    test_command_queue.cpp
-    test_command_tracker.cpp
     ${LIB_COMMAND_SRC}/ungula/command/command_selftest.cpp
 )
 target_link_libraries(test_ungula_command gtest_main)

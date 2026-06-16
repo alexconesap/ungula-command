@@ -30,14 +30,6 @@ TEST(CommandTypes, CommandPayloadKindValuesAreStable)
     EXPECT_EQ(static_cast<uint8_t>(CommandPayloadKind::ExternalBinary), 3);
 }
 
-TEST(CommandTypes, SendResultToString)
-{
-    EXPECT_STREQ(toString(SendResult::Queued), "QUEUED");
-    EXPECT_STREQ(toString(SendResult::Sent), "SENT");
-    EXPECT_STREQ(toString(SendResult::FailedTransport), "FAILED_TRANSPORT");
-    EXPECT_STREQ(toString(static_cast<SendResult>(255)), "UNKNOWN");
-}
-
 TEST(CommandTypes, CommandResultToString)
 {
     EXPECT_STREQ(toString(CommandResult::Accepted), "ACCEPTED");
