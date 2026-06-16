@@ -40,12 +40,13 @@ namespace ungula::command
 template <class Host, uint16_t NoticeCapacity = 64> class CommandIngress
 {
 public:
-        /// THE ingress. Assigns an id when the envelope arrives without one, runs
-        /// the run-state gate, then fans out by domain. The host's dispatch
-        /// handlers own the actual execution and the per-command verdict.
-        CommandSubmitResult submit(Host &host, const CommandEnvelope &cmdIn)
+        /// Submit-time gate. Assigns a correlation id (if unset) and runs the
+        /// run-state gate. Returns Accepted when the command may proceed (be
+        /// queued or dispatched), or a Rejected* reason. Does NOT execute — split
+        /// from dispatch() so an async ingress can gate now and dispatch later
+        /// (from the loop), while a synchronous caller still uses submit().
+        CommandSubmitResult gate(Host &host, CommandEnvelope &cmd)
         {
-                CommandEnvelope cmd = cmdIn;
                 if (cmd.id == 0) {
                         cmd.id = ++counter_;
                 }
@@ -54,6 +55,14 @@ public:
                 if (host.isProcessRunning() && !host.allowedWhileRunning(cmd)) {
                         return CommandSubmitResult::RejectedBusy;
                 }
+                return CommandSubmitResult::Accepted;
+        }
+
+        /// Fan an already-gated command out to its domain handler — the actual
+        /// execution + per-command verdict. An async ingress calls this from the
+        /// loop as it drains the queue.
+        CommandSubmitResult dispatch(Host &host, const CommandEnvelope &cmd)
+        {
                 switch (cmd.domain) {
                 case CommandDomain::Common:
                         return host.dispatchCommon(cmd);
@@ -61,6 +70,18 @@ public:
                         return host.dispatchProject(cmd);
                 }
                 return CommandSubmitResult::RejectedUnsupported;
+        }
+
+        /// Synchronous gate + dispatch (the original behaviour). Kept for callers
+        /// that execute in place rather than queue.
+        CommandSubmitResult submit(Host &host, const CommandEnvelope &cmdIn)
+        {
+                CommandEnvelope cmd = cmdIn;
+                const CommandSubmitResult gated = gate(host, cmd);
+                if (gated != CommandSubmitResult::Accepted) {
+                        return gated;
+                }
+                return dispatch(host, cmd);
         }
 
         /// One-shot operator notice: a rejected command or a validation failure
