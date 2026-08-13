@@ -75,21 +75,56 @@ bool decodeJog(const CommandEnvelope& cmd, JogStep& out)
 }
 ```
 
+## Routing a rejection back to whoever sent the command
+
+`CommandErrorRouter` keeps the "which screen does this error belong on" logic in
+one place: a UI-sourced rejection goes to the local screen, anything remote
+(REST/cloud/MQTT) is recorded as a web op error the client reads by sequence.
+
+```cpp
+#include <ungula/command/command_error_router.h>
+
+using namespace ungula::command;
+
+CommandErrorRouter errors;
+
+void onNodeRejected(CommandSource origin, const char* why)
+{
+    const bool remote = errors.route(origin, why, [](const char* msg) {
+        showOverlayOnScreen(msg); // only called for CommandSource::Ui
+    });
+    if (remote) {
+        wakeStatusBroadcast(); // client polls errors.webErrorSeq()
+    }
+}
+```
+
+This header is not part of the `command.h` umbrella — include it directly.
+
 ## API summary
 
 - `command_types.h`: enums for command source/domain/payload/result/submit-result.
 - `command_envelope.h`: `CommandEnvelope` + `setInline` / `getInline`.
-- `command_ingress.h`: `CommandIngress<Host>` with `gate/dispatch/submit/stageNotice/takeNotice`.
-- `command.h`: umbrella include.
+- `command_ingress.h`: `CommandIngress<Host, NoticeCapacity>` with `gate` /
+  `dispatch` / `submit` / `stageNotice` / `takeNotice`.
+- `command_error_router.h`: `CommandErrorRouter` — rejection routing by origin.
+  Not in the umbrella header.
+- `command.h`: umbrella include (types + envelope + ingress).
 
 ## Constraints
 
 - Inline payload max is `COMMAND_INLINE_PAYLOAD_MAX` (`16` bytes).
 - Inline payload type must be trivially copyable.
+- `submit()` copies the envelope, so the correlation id it assigns is not
+  visible to the caller. Use `gate()` + `dispatch()` when you need the id.
+- Nothing here is thread-safe. One ingress per owner, or serialize at the host.
+- No queue, no dedup, no ACK tracking, no timers — the host owns all of that.
 
 ## Dependencies
 
-- `UngulaCore` (`ungula::core::util::Queue`)
+None at compile time. `library.properties` still declares `depends=UngulaCore`,
+but no header in `src/` includes anything from it — the dependency is stale and
+will be dropped once the version is bumped.
 
 ## Acknowledgements
 
