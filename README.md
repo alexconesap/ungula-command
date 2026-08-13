@@ -99,7 +99,10 @@ void onNodeRejected(CommandSource origin, const char* why)
 }
 ```
 
-This header is not part of the `command.h` umbrella — include it directly.
+This header is not part of the `command.h` umbrella. Including
+`<ungula/command/command.h>` is not enough — add
+`#include <ungula/command/command_error_router.h>` yourself. It also has no host
+tests yet.
 
 ## API summary
 

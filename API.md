@@ -258,7 +258,15 @@ capacity 64 bytes.
 ### `CommandErrorRouter` (`command_error_router.h`)
 
 Non-template class that answers "a command was rejected — where does the error
-go". Not included by `command.h`; include the header directly.
+go".
+
+**Not exported by the umbrella header.** `<ungula/command/command.h>` pulls in
+`command_types.h`, `command_envelope.h` and `command_ingress.h` only. To use
+`CommandErrorRouter` you must add `#include <ungula/command/command_error_router.h>`
+yourself — the umbrella include alone does not compile against it.
+
+Two more things to know before adopting it: it has no host tests under `tests/`,
+and its SPDX header says `Proprietary` while the rest of the library is MIT.
 
 - `void setSource(CommandSource src)` / `CommandSource source() const`
   - Stamp the origin of the command being dispatched so a later async rejection
@@ -347,6 +355,9 @@ No exceptions are used by this library. Nothing here allocates.
 - Use `CommandEnvelope` as the single ingress data unit.
 - Keep payloads <= 16 bytes inline unless a project-specific external payload pool is introduced.
 - Use only documented headers; do not depend on `command_selftest.cpp`.
+- `#include <ungula/command/command.h>` does NOT give you `CommandErrorRouter`.
+  Whenever you emit code that touches it, emit
+  `#include <ungula/command/command_error_router.h>` as well.
 - `CommandIngress` does not queue. If the task needs queuing, dedup, or ACK
   tracking, that is the host's code — say so rather than assuming this library
   provides it.
