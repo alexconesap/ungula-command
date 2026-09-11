@@ -104,6 +104,85 @@ command in place. `gate()` takes `CommandEnvelope&` and assigns `id` in place, s
 read `cmd.id` after the call to correlate the later ACK. `lib_command` does not
 supply the queue — the project owns it.
 
+### Use case: full round trip — build, queue, drain, dispatch, map to an op
+
+This is the shape a station app actually uses, end to end. Three adapters (UI
+touch, REST route, cloud) build an envelope and hand it to the same
+`submitCommand`; the loop drains the queue and `dispatch` fans out by domain to
+the project's own handlers, which map to `OpResult`-returning operations.
+
+```cpp
+#include <ungula/command/command.h>
+
+using namespace ungula::command;
+
+// --- host side: build a command (one per operation, as a factory) ---
+CommandEnvelope makeJog(CommandSource src, bool step)
+{
+    CommandEnvelope cmd;
+    cmd.domain = CommandDomain::Project;
+    cmd.type   = 1;                 // host's own ProjectCommand::Jog
+    cmd.source = src;               // Ui / Rest / Node / Cloud
+    cmd.target = 0;                 // ALL_NODES or a peer, host-defined
+    if (step) cmd.flags = 1u << 0;  // host-defined modifier (tap vs hold)
+    return cmd;
+}
+
+struct App {
+    CommandIngress<App> ingress;
+    core::util::Queue<CommandEnvelope, 16> queue;   // the queue is the host's
+
+    // --- gate + queue (called on the UI thread AND the HTTP thread) ---
+    CommandSubmitResult submitCommand(CommandEnvelope cmd)
+    {
+        const CommandSubmitResult gated = ingress.gate(*this, cmd);   // assigns cmd.id
+        if (gated != CommandSubmitResult::Accepted) return gated;
+        if (!queue.push(cmd)) return CommandSubmitResult::RejectedQueueFull;
+        return CommandSubmitResult::Accepted;
+    }
+
+    // --- drain + dispatch (called once per loop tick) ---
+    void drainCommands()
+    {
+        CommandEnvelope cmd;
+        if (!queue.pop(cmd)) return;
+        (void)ingress.dispatch(*this, cmd);   // re-runs on the loop task
+    }
+
+    // --- the three hooks the ingress calls ---
+    bool isProcessRunning() const { return running_; }
+    bool allowedWhileRunning(const CommandEnvelope&) const { return false; }
+
+    CommandSubmitResult dispatchProject(const CommandEnvelope& cmd)
+    {
+        switch (cmd.type) {
+        case 1: return opToSubmit(jog((cmd.flags & 1u) != 0u));
+        }
+        return CommandSubmitResult::RejectedUnsupported;
+    }
+
+    // --- project operation, returning the portable outcome ---
+    OpResult jog(bool step)
+    {
+        if (running_) return OpResult::BusyRunning;
+        uint32_t wireFlags = JOG_FLAG;              // the node-side bit
+        if (step) wireFlags |= JOG_STEP_FLAG;
+        sendProcessCommand(ALL_NODES, wireFlags);
+        return OpResult::Ok;
+    }
+
+    bool running_ = false;
+};
+```
+
+When to use this: you want the exact lifecycle a station runs — gate on the
+producing task, queue, execute on the loop task, and let `dispatch` map the
+command to a real operation. `OpResult` is the shared "did it run / why not"
+vocabulary the REST host and the UI both read, so `opToSubmit` translates it
+back into the `CommandSubmitResult` the caller saw. `lib_command` supplies only
+the gate and dispatch; the queue, the factories and the operations are the
+host's.
+
 ---
 
 ## API
